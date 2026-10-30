@@ -1,184 +1,509 @@
 (() => {
- 'use strict';
- const tracks = [
-  {title:'Stars',file:'media/tape-1.mp4',note:'Some nights, I put what I felt into the sky.'},
-  {title:'Dive',file:'media/tape-2.mp4',note:'For the feelings that never stayed near the surface.'},
-  {title:'Whereforth',file:'media/tape-3.mp4',note:'For every thought that kept finding its way to you.'},
-  {title:'Je musique',file:'media/tape-4.mp4',note:'When the words ran out, there was still this.'}
- ];
- // Original MINJI timing slots, retained by Nighty's Intro.tsx/dialogue.ts.
- const cues = [
-  {at:2.6,dur:2.2,text:'there you are, Nini.',ff:[50,43]},
-  {at:5.3,dur:3.5,text:'I’ve been keeping a little light for you.',ff:[44,38]},
-  {at:9.3,dur:3.2,text:'For the words that arrived too quietly.',ff:[56,40]},
-  {at:13.0,dur:2.8,text:'For the nights I wished you were here.',ff:[48,35]},
-  {at:16.3,dur:3.0,text:'Four songs. What I couldn’t quite say.',ff:[42,44]},
-  {at:19.8,dur:3.5,text:'I made them for you. I hope you can hear it.',ff:[58,38]},
-  {at:23.8,dur:3.0,text:'Some feelings only know how to become music.',ff:[52,46]},
-  {at:27.3,dur:3.5,text:'Stay a little. The first one is yours.',ff:[47,39]}
- ];
- const MUSIC_AT=19.8,MUSIC_OFFSET=8,PRELOAD_AT=16.3,INTRO_END=31.6;
- const video=$('video'),archive=$('archive'),intro=$('intro'),line=$('introLine');
- const start=$('startBtn'),slot=$('startSlot'),firefly=$('firefly'),message=$('mediaMessage');
- const tapes=[...document.querySelectorAll('[data-tape]')],dots=[...document.querySelectorAll('[data-dot]')];
- const reduced=matchMedia('(prefers-reduced-motion: reduce)');
- let mode='cover',selected=0,playToken=0,introFrame=0,cueIndex=-1,clock=0,wallStart=0,musicRequested=false,musicReady=false,prepped=false;
- let lostTime=0,hiddenAt=null;
- function setTrack(i){
-  selected=i;
-  $('scene-label').textContent=`0${i+1} / ${tracks[i].title.toUpperCase()}`;
-  $('playingLabel').textContent=`TAPE 0${i+1} · ${tracks[i].title.toUpperCase()}`;
-  tapes.forEach((t,n)=>{t.classList.toggle('active',n===i);t.setAttribute('aria-pressed',String(n===i))});
-  dots.forEach((d,n)=>d.setAttribute('aria-pressed',String(n===i)));
-  $('rackNote').textContent=tracks[i].note;
-  video.setAttribute('aria-label',`Tape ${i+1}: ${tracks[i].title}`);
- }
- function progress(){
-  const value=Number.isFinite(video.duration)&&video.duration>0?video.currentTime/video.duration:0;
-  $('scene-progress').style.transform=`scaleX(${Math.max(0,Math.min(1,value))})`;
- }
- function clearMessage(){message.hidden=true;message.replaceChildren()}
- function showMessage(text,buttonText,action){
-  message.replaceChildren();
-  const p=document.createElement('p');p.textContent=text;message.append(p);
-  if(buttonText){const b=document.createElement('button');b.type='button';b.textContent=buttonText;b.addEventListener('click',action);message.append(b)}
-  message.hidden=false;
- }
- function resumeScene(){if(!reduced.matches&&!document.hidden&&mode!=='player'){SceneMotion.paused=false;BgScenes.start()}}
- function showPlayer(){
-  setTrack(selected);
-  mode='player';cancelAnimationFrame(introFrame);intro.hidden=true;$('cover').hidden=true;
-  archive.classList.remove('intro-running');archive.classList.add('has-media');
-  slot.hidden=true;$('playingStrip').hidden=false;$('openingHint').textContent='';
-  firefly.hidden=true;video.controls=true;BgScenes.stop();
-  $('footerNote').textContent='Whenever you’re ready, choose another.';
-  tapes.forEach(t=>t.disabled=false);dots.forEach(d=>d.disabled=false);
-  clearMessage();progress();
- }
- async function playCurrent(){
-  try{await video.play();return true}catch(e){
-   if(e.name==='AbortError')return false;
-   if(mode==='intro')$('resumeMusic').hidden=false;
-   else showMessage('Your tape is ready.','Tap to play',()=>{clearMessage();playCurrent()});
-   return false;
+  'use strict';
+
+  const tracks = [
+    { title: 'Stars', file: 'media/tape-1.mp4', note: 'Some nights, I put what I felt into the sky.' },
+    { title: 'Dive', file: 'media/tape-2.mp4', note: 'For the feelings that never stayed near the surface.' },
+    { title: 'Whereforth', file: 'media/tape-3.mp4', note: 'For every thought that kept finding its way back to you.' },
+    { title: 'Je musique', file: 'media/tape-4.mp4', note: 'When I ran out of words, I still had this.' }
+  ];
+
+  // Seconds after the opening begins. The last lines follow MEMORY.mp3's playback
+  // position, not wall-clock time, so a slow network cannot outrun the music.
+  const cues = [
+    { at: 2.5,  dur: 2.9, text: 'Hey, you.', ff: [50, 35] },
+    { at: 6.1,  dur: 3.2, text: 'I wanted to show you something.', ff: [42, 40] },
+    { at: 10.1, dur: 3.3, text: 'I kept trying to find the right words.', ff: [56, 34] },
+    { at: 14.3, dur: 3.0, text: 'But they never came out quite right.', ff: [47, 39] },
+    { at: 18.1, dur: 3.1, text: 'So I made something instead.', ff: [53, 33] },
+    { at: 22.3, dur: 3.4, text: 'Four little songs. All for you.', ff: [43, 39] },
+    { at: 26.8, dur: 3.4, text: 'There’s no rush to listen.', ff: [57, 36] },
+    { at: 31.2, dur: 3.1, text: 'Just stay here for a moment.', ff: [50, 32] }
+  ];
+  const MUSIC_AT = 20.0;
+  const MUSIC_OFFSET = 8.0;
+  const INTRO_END = 35.4;
+  const MAX_MEMORY_VOLUME = .82;
+  const $ = id => document.getElementById(id);
+  const archive = $('archive'), intro = $('intro'), introLine = $('introLine');
+  const video = $('video'), memory = $('memoryAudio');
+  const start = $('startBtn'), slot = $('startSlot'), firefly = $('firefly');
+  const message = $('mediaMessage'), tapes = [...document.querySelectorAll('[data-tape]')];
+  const dots = [...document.querySelectorAll('[data-dot]')];
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  let mode = 'cover'; // cover -> intro -> ready -> player
+  let selected = -1, playToken = 0;
+  let introFrame = 0, cueIndex = -1, introClock = 0, wallStart = 0, hiddenAt = null, lostTime = 0;
+  let musicRequested = false, musicStarted = false, silent = false, silentStart = 0;
+  let audioContext = null, gainNode = null, memoryLevel = 0, fadeFrame = 0;
+  let transitionTimer = 0;
+
+  const clamp = value => Math.max(0, Math.min(1, value));
+  const visibleTime = () => (performance.now() - wallStart - lostTime) / 1000;
+
+  function setTrack(index) {
+    selected = index;
+    const hasTrack = index >= 0;
+    $('scene-label').textContent = hasTrack ? `0${index + 1} / ${tracks[index].title.toUpperCase()}` : 'YOUR FOUR TAPES';
+    $('playingLabel').textContent = hasTrack ? `TAPE 0${index + 1} · ${tracks[index].title.toUpperCase()}` : '';
+    tapes.forEach((t, i) => {
+      t.classList.toggle('active', hasTrack && i === index);
+      t.setAttribute('aria-pressed', String(hasTrack && i === index));
+    });
+    dots.forEach((d, i) => d.setAttribute('aria-pressed', String(hasTrack && i === index)));
+    $('rackNote').textContent = hasTrack ? tracks[index].note : 'Take your time. These were always meant for you.';
+    video.setAttribute('aria-label', hasTrack ? `Tape ${index + 1}: ${tracks[index].title}` : 'Video player');
+    document.documentElement.style.setProperty('--scene-rgb', BgScenes.colors[hasTrack ? index : BgScenes.current]);
   }
- }
- function selectTape(i){
-  if(mode==='intro')return;
-  if(mode==='cover'){beginIntro();return}
-  const token=++playToken;video.pause();clearMessage();setTrack(i);showPlayer();
-  video.src=tracks[i].file;video.preload='metadata';video.load();
-  progress();
-  video.play().catch(e=>{if(token!==playToken||e.name==='AbortError')return;if(video.error)return;showMessage('Your tape is ready.','Tap to play',()=>{clearMessage();playCurrent()})});
- }
- function startIntroMusic(){
-  musicRequested=true;
-  const launch=()=>{
-   if(mode!=='intro')return;
-   video.pause();video.volume=0;video.muted=false;
-   const play=()=>{
-    if(mode!=='intro')return;
-    video.play().then(()=>{if(mode==='intro'){musicReady=true;$('resumeMusic').hidden=true}}).catch(()=>{$('resumeMusic').hidden=false});
-   };
-   if(Math.abs(video.currentTime-MUSIC_OFFSET)<.05&&!video.seeking)play();
-   else{video.addEventListener('seeked',play,{once:true});video.currentTime=MUSIC_OFFSET}
-  };
-  if(video.readyState>=1)launch();else video.addEventListener('loadedmetadata',launch,{once:true});
- }
- function tickIntro(now){
-  if(mode!=='intro')return;
-  const wall=(now-wallStart-lostTime)/1000;
-  if(!prepped&&wall>=PRELOAD_AT){
-   prepped=true;video.preload='auto';
-   const prepare=()=>{if(mode==='intro'&&!musicRequested)video.currentTime=MUSIC_OFFSET};
-   if(video.readyState>=1)prepare();else video.addEventListener('loadedmetadata',prepare,{once:true});
+
+  function progress() {
+    const ratio = mode === 'player' && Number.isFinite(video.duration) && video.duration > 0
+      ? clamp(video.currentTime / video.duration) : 0;
+    $('scene-progress').style.transform = `scaleX(${ratio})`;
   }
-  if(!musicRequested&&wall>=MUSIC_AT)startIntroMusic();
-  // Music owns the final cues: buffering cannot move the words ahead of the song.
-  clock=musicReady?MUSIC_AT+Math.max(0,video.currentTime-MUSIC_OFFSET):musicRequested?MUSIC_AT:Math.min(wall,MUSIC_AT);
-  if(musicReady)video.volume=Math.max(0,Math.min(1,(video.currentTime-MUSIC_OFFSET)/2.7));
-  let index=-1,visible=false;
-  cues.forEach((cue,i)=>{if(clock>=cue.at){index=i;visible=clock<cue.at+cue.dur}});
-  if(index!==cueIndex){
-   cueIndex=index;
-   if(index>=0){line.textContent=cues[index].text;firefly.style.left=cues[index].ff[0]+'%';firefly.style.top=cues[index].ff[1]+'%'}
+
+  function clearMessage() {
+    message.hidden = true;
+    message.replaceChildren();
   }
-  line.classList.toggle('visible',visible);
-  if(clock>=INTRO_END){showPlayer();video.focus({preventScroll:true});return}
-  introFrame=requestAnimationFrame(tickIntro);
- }
- function beginIntro(){
-  if(mode!=='cover')return;
-  mode='intro';wallStart=performance.now();clock=0;lostTime=0;start.disabled=true;
-  tapes.forEach(t=>t.disabled=true);dots.forEach(d=>d.disabled=true);
-  archive.classList.add('intro-running');$('cover').hidden=true;intro.hidden=false;
-  firefly.style.left='50%';firefly.style.top='43%';
-  $('openingHint').textContent='A little light is finding its way to you.';
-  video.controls=false;video.src=tracks[0].file;video.preload='auto';video.volume=0;video.muted=false;
-  // Authorise this exact media element inside the opening tap/drag gesture on mobile.
-  video.play().then(()=>{if(mode==='intro'&&!musicRequested){video.pause();video.currentTime=0}}).catch(()=>{});
-  introFrame=requestAnimationFrame(tickIntro);
- }
- $('resumeMusic').addEventListener('click',()=>{video.volume=1;video.muted=false;video.play().then(()=>{musicReady=true;$('resumeMusic').hidden=true}).catch(()=>{})});
- video.addEventListener('error',()=>{
-  if(mode==='intro'){showPlayer();showMessage('This recording couldn’t open. Try it once more.','Retry tape',()=>selectTape(0))}
-  else showMessage('This recording couldn’t open. Try it once more.','Retry tape',()=>selectTape(selected));
- });
- video.addEventListener('playing',()=>{archive.classList.add('is-playing');if(mode==='player')clearMessage()});
- video.addEventListener('pause',()=>archive.classList.remove('is-playing'));
- video.addEventListener('timeupdate',progress);video.addEventListener('durationchange',progress);video.addEventListener('seeked',progress);
- video.addEventListener('ended',()=>{
-  archive.classList.remove('is-playing');
-  $('rackNote').textContent=selected===3?'All four were made for you. Come back whenever you like.':'Stay a little longer, if you like. There’s another tape waiting.';
-  progress();
- });
- tapes.forEach(t=>t.addEventListener('click',()=>selectTape(Number(t.dataset.tape))));
- dots.forEach(d=>d.addEventListener('click',()=>selectTape(Number(d.dataset.dot))));
- $('replayBtn').addEventListener('click',()=>{video.currentTime=0;clearMessage();playCurrent()});
- $('fullscreenBtn').addEventListener('click',()=>{
-  // iPhone exposes a video-specific fullscreen entry point.
-  if(typeof video.webkitEnterFullscreen==='function'){try{video.webkitEnterFullscreen();return}catch{}}
-  if(video.requestFullscreen)video.requestFullscreen().catch(()=>{});
-  else if(video.webkitRequestFullscreen)video.webkitRequestFullscreen();
- });
- let drag=null,suppressClick=false;
- start.addEventListener('pointerdown',e=>{
-  if(mode!=='cover'||e.button!==0)return;
-  drag={x:e.clientX,value:0,moved:false};start.setPointerCapture(e.pointerId);
- });
- start.addEventListener('pointermove',e=>{
-  if(!drag)return;
-  const max=Math.max(1,slot.clientWidth-start.offsetWidth-8);
-  drag.value=Math.max(0,Math.min(max,e.clientX-drag.x));drag.moved ||= Math.abs(e.clientX-drag.x)>6;
-  start.style.transform=`translateX(${drag.value}px)`;$('slotFill').style.transform=`scaleX(${drag.value/max})`;
-  $('slotPrompt').style.opacity=String(1-drag.value/max*.8);
- });
- start.addEventListener('pointerup',e=>{
-  if(!drag)return;
-  const max=Math.max(1,slot.clientWidth-start.offsetWidth-8),complete=drag.value/max>.85,moved=drag.moved;
-  drag=null;start.releasePointerCapture(e.pointerId);
-  suppressClick=moved;
-  if(complete){beginIntro();return}
-  start.style.transform='';$('slotFill').style.transform='scaleX(0)';$('slotPrompt').style.opacity='1';
- });
- start.addEventListener('pointercancel',()=>{drag=null;start.style.transform='';$('slotFill').style.transform='scaleX(0)';$('slotPrompt').style.opacity='1'});
- start.addEventListener('click',()=>{if(suppressClick){suppressClick=false;return}beginIntro()});
- document.addEventListener('visibilitychange',()=>{
-  if(document.hidden){
-   hiddenAt=performance.now();SceneMotion.stop();
-   if(mode==='intro'){video.pause();cancelAnimationFrame(introFrame)}
-  }else{
-   if(mode==='intro'){
-    if(hiddenAt!==null)lostTime+=performance.now()-hiddenAt;
-    if(musicReady)video.play().catch(()=>{$('resumeMusic').hidden=false});
-    introFrame=requestAnimationFrame(tickIntro);
-   }
-   resumeScene();hiddenAt=null;
+
+  function showMessage(text, actionLabel, action) {
+    message.replaceChildren();
+    const p = document.createElement('p');
+    p.textContent = text;
+    message.append(p);
+    if (actionLabel) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = actionLabel;
+      button.addEventListener('click', action, { once: true });
+      message.append(button);
+    }
+    message.hidden = false;
   }
- });
- const setReduced=()=>{SceneMotion.paused=reduced.matches;if(reduced.matches){SceneMotion.stop();BgScenes.show(BgScenes.current)}else resumeScene()};
- reduced.addEventListener?.('change',setReduced);
- BgScenes.init();setReduced();resumeScene();
- // Every tape remains directly available once the opening has finished.
- tapes.forEach(t=>t.setAttribute('aria-pressed','false'));
+
+  // A Web Audio gain node makes fades work on iOS, which ignores element.volume.
+  // The ordinary audio element is the fallback when Web Audio is unavailable.
+  function prepareSound() {
+    if (audioContext) {
+      audioContext.resume().catch(() => {});
+      return;
+    }
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const source = ctx.createMediaElementSource(memory);
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      audioContext = ctx;
+      gainNode = gain;
+      memory.volume = 1;
+      ctx.resume().catch(() => {});
+    } catch (error) {
+      // Element playback still works when an AudioContext cannot be created.
+      gainNode = null;
+      audioContext = null;
+      memory.volume = 0;
+    }
+  }
+
+  function setMemoryVolume(level) {
+    memoryLevel = clamp(level);
+    if (gainNode && audioContext) gainNode.gain.setValueAtTime(memoryLevel, audioContext.currentTime);
+    else memory.volume = memoryLevel;
+  }
+
+  function fadeMemory(target, duration, done) {
+    cancelAnimationFrame(fadeFrame);
+    const from = memoryLevel;
+    const startAt = performance.now();
+    const smooth = x => x * x * (3 - 2 * x);
+    if (duration === 0 || reduced.matches) {
+      setMemoryVolume(target);
+      done?.();
+      return;
+    }
+    const frame = now => {
+      const fraction = clamp((now - startAt) / duration);
+      setMemoryVolume(from + (target - from) * smooth(fraction));
+      if (fraction < 1) fadeFrame = requestAnimationFrame(frame);
+      else done?.();
+    };
+    fadeFrame = requestAnimationFrame(frame);
+  }
+
+  function primeMemory() {
+    prepareSound();
+    memory.preload = 'auto';
+    memory.load();
+    // The opening gesture makes subsequent playback possible on more mobile browsers.
+    // Nothing is audible and the element is paused before the scene's music cue.
+    setMemoryVolume(0);
+    memory.play().then(() => {
+      if (mode === 'intro' && !musicRequested) {
+        memory.pause();
+        try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* metadata not ready yet */ }
+      }
+    }).catch(() => {});
+  }
+
+  memory.addEventListener('loadedmetadata', () => {
+    if (!musicStarted) {
+      try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* seek at playback time */ }
+    }
+  });
+
+  function updateMemoryUI() {
+    const playing = !memory.paused && !memory.ended && !memory.error;
+    $('memoryStatus').textContent = playing ? 'MEMORY IS PLAYING' : memory.error ? 'MUSIC UNAVAILABLE' : 'MEMORY IS PAUSED';
+    $('memoryToggle').textContent = playing ? 'Pause music' : memory.ended ? 'Replay music' : 'Play music';
+    $('memoryToggle').setAttribute('aria-label', playing ? 'Pause background music' : 'Play background music');
+    $('memoryStrip').classList.toggle('music-paused', !playing);
+  }
+
+  async function playMemory() {
+    if (memory.error) { updateMemoryUI(); return false; }
+    if (memory.ended || (Number.isFinite(memory.duration) && memory.currentTime >= memory.duration - .5)) {
+      try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* wait for metadata */ }
+    }
+    if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(() => {});
+    try {
+      await memory.play();
+      musicStarted = true;
+      $('resumeMusic').hidden = true;
+      $('silentContinue').hidden = true;
+      fadeMemory(MAX_MEMORY_VOLUME, mode === 'intro' ? 3200 : 850);
+      updateMemoryUI();
+      return true;
+    } catch (_) {
+      if (mode === 'intro') {
+        $('resumeMusic').hidden = false;
+        $('silentContinue').hidden = false;
+      }
+      updateMemoryUI();
+      return false;
+    }
+  }
+
+  function requestMemory() {
+    if (musicRequested) return;
+    musicRequested = true;
+    const launch = () => {
+      if (mode !== 'intro' && mode !== 'ready') return;
+      // The opening has its own soundtrack, separate from the video tapes.
+      if (!musicStarted) {
+        try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* handled by fallback */ }
+      }
+      playMemory();
+    };
+    if (memory.readyState >= HTMLMediaElement.HAVE_METADATA) launch();
+    else memory.addEventListener('loadedmetadata', launch, { once: true });
+  }
+
+  function showReady() {
+    if (mode === 'ready' || mode === 'player') return;
+    mode = 'ready';
+    cancelAnimationFrame(introFrame);
+    introLine.classList.remove('visible');
+    $('coverEyebrow').textContent = 'TAKE YOUR TIME';
+    $('coverTitle').textContent = 'They’re here when you’re ready.';
+    $('coverSubtitle').textContent = 'Pick whichever song you want to hear first.';
+    $('cover').classList.add('archive-invite');
+    $('cover').hidden = false;
+    $('startSlot').hidden = true;
+    $('playingStrip').hidden = true;
+    $('memoryStrip').hidden = false;
+    $('openingHint').hidden = true;
+    $('footerNote').textContent = 'Listen in any order. Nothing starts until you choose.';
+    archive.classList.remove('intro-running', 'has-media', 'is-playing');
+    document.body.classList.remove('intro-active');
+    // A landscape phone may have scrolled to the start handle; reveal from the top.
+    window.scrollTo(0, 0);
+    document.body.classList.add('intro-exiting');
+    intro.classList.add('is-ending');
+    archive.inert = false;
+    archive.removeAttribute('aria-hidden');
+    video.controls = false;
+    setTrack(-1);
+    updateMemoryUI();
+    if (!reduced.matches) { SceneMotion.paused = false; BgScenes.start(); }
+    clearTimeout(transitionTimer);
+    transitionTimer = window.setTimeout(() => {
+      intro.hidden = true;
+      intro.classList.remove('is-ending');
+      document.body.classList.remove('intro-exiting');
+      $('memoryToggle').focus({ preventScroll: true });
+    }, reduced.matches ? 0 : 1350);
+  }
+
+  function tickIntro(now) {
+    if (mode !== 'intro') return;
+    const wall = (now - wallStart - lostTime) / 1000;
+    if (!musicRequested && wall >= MUSIC_AT) requestMemory();
+    if (silent) introClock = MUSIC_AT + Math.max(0, wall - silentStart);
+    else if (musicStarted) introClock = MUSIC_AT + Math.max(0, memory.currentTime - MUSIC_OFFSET);
+    else introClock = Math.min(wall, MUSIC_AT);
+
+    let nextIndex = -1, shouldShow = false;
+    cues.forEach((cue, index) => {
+      if (introClock >= cue.at) {
+        nextIndex = index;
+        shouldShow = introClock < cue.at + cue.dur;
+      }
+    });
+    if (nextIndex !== cueIndex) {
+      cueIndex = nextIndex;
+      if (nextIndex >= 0) {
+        introLine.textContent = cues[nextIndex].text;
+        firefly.style.left = `${cues[nextIndex].ff[0]}%`;
+        firefly.style.top = `${cues[nextIndex].ff[1]}%`;
+      }
+    }
+    introLine.classList.toggle('visible', shouldShow);
+    $('introProgress').style.transform = `scaleX(${clamp(introClock / INTRO_END)})`;
+    if (introClock >= INTRO_END) { showReady(); return; }
+    introFrame = requestAnimationFrame(tickIntro);
+  }
+
+  function beginIntro() {
+    if (mode !== 'cover') return;
+    mode = 'intro';
+    archive.inert = true;
+    archive.setAttribute('aria-hidden', 'true');
+    document.body.classList.add('intro-active');
+    archive.classList.add('intro-running');
+    intro.hidden = false;
+    intro.classList.remove('is-ending');
+    $('introProgress').style.transform = 'scaleX(0)';
+    start.disabled = true;
+    wallStart = performance.now();
+    lostTime = 0;
+    introClock = 0;
+    cueIndex = -1;
+    musicRequested = false;
+    musicStarted = false;
+    silent = false;
+    firefly.style.left = '50%';
+    firefly.style.top = '37%';
+    BgScenes.stop();
+    primeMemory();
+    $('skipIntro').focus({ preventScroll: true });
+    introFrame = requestAnimationFrame(tickIntro);
+  }
+
+  function pauseMemoryForTape() {
+    cancelAnimationFrame(fadeFrame);
+    const token = ++playToken;
+    if (!memory.paused) {
+      fadeMemory(0, 450, () => {
+        if (token === playToken) { memory.pause(); updateMemoryUI(); }
+      });
+    }
+    return token;
+  }
+
+  function showPlayer(index) {
+    mode = 'player';
+    setTrack(index);
+    archive.classList.add('has-media');
+    archive.classList.remove('intro-running');
+    $('cover').hidden = true;
+    $('startSlot').hidden = true;
+    $('memoryStrip').hidden = true;
+    $('playingStrip').hidden = false;
+    $('openingHint').hidden = true;
+    video.controls = true;
+    BgScenes.stop();
+    $('footerNote').textContent = 'You can return to the other songs whenever you like.';
+    clearMessage();
+    progress();
+  }
+
+  function playCurrent() {
+    return video.play().catch(error => {
+      if (error.name === 'AbortError') return;
+      if (!video.error) showMessage('Your recording is ready.', 'Tap to play', () => { clearMessage(); playCurrent(); });
+    });
+  }
+
+  function selectTape(index) {
+    if (mode === 'intro' || mode === 'cover') return;
+    if (!Number.isInteger(index) || index < 0 || index >= tracks.length) return;
+    const token = pauseMemoryForTape();
+    video.pause();
+    showPlayer(index);
+    // A new click is always a fresh recording, never the 8-second intro offset.
+    video.src = tracks[index].file;
+    video.preload = 'metadata';
+    video.load();
+    video.play().catch(error => {
+      if (token !== playToken || error.name === 'AbortError' || video.error) return;
+      showMessage('Your recording is ready.', 'Tap to play', () => { clearMessage(); playCurrent(); });
+    });
+  }
+
+  $('resumeMusic').addEventListener('click', () => {
+    prepareSound();
+    playMemory();
+  });
+  $('silentContinue').addEventListener('click', () => {
+    silent = true;
+    silentStart = visibleTime();
+    $('resumeMusic').hidden = true;
+    $('silentContinue').hidden = true;
+  });
+  $('skipIntro').addEventListener('click', () => {
+    if (mode !== 'intro') return;
+    if (!musicRequested) requestMemory();
+    showReady();
+  });
+  $('memoryToggle').addEventListener('click', () => {
+    if (mode !== 'ready') return;
+    if (!memory.paused && !memory.ended) {
+      cancelAnimationFrame(fadeFrame);
+      fadeMemory(0, 350, () => { if (mode === 'ready') memory.pause(); updateMemoryUI(); });
+    } else {
+      prepareSound();
+      setMemoryVolume(0);
+      playMemory();
+    }
+  });
+  memory.addEventListener('error', () => {
+    if (mode === 'intro') {
+      $('resumeMusic').hidden = true;
+      $('silentContinue').hidden = false;
+    }
+    updateMemoryUI();
+  });
+  memory.addEventListener('ended', updateMemoryUI);
+  memory.addEventListener('play', updateMemoryUI);
+  memory.addEventListener('pause', updateMemoryUI);
+
+  video.addEventListener('error', () => {
+    if (mode !== 'player') return;
+    showMessage('This recording could not open. Please try again.', 'Retry', () => selectTape(selected));
+  });
+  video.addEventListener('playing', () => {
+    if (mode !== 'player') return;
+    archive.classList.add('is-playing');
+    clearMessage();
+  });
+  video.addEventListener('pause', () => archive.classList.remove('is-playing'));
+  video.addEventListener('ended', () => {
+    archive.classList.remove('is-playing');
+    $('rackNote').textContent = selected === 3
+      ? 'That’s all four. You can come back to any of them.'
+      : 'Listen again, or choose another. It’s up to you.';
+    progress();
+  });
+  ['timeupdate', 'durationchange', 'seeked'].forEach(event => video.addEventListener(event, progress));
+
+  tapes.forEach(t => t.addEventListener('click', () => selectTape(Number(t.dataset.tape))));
+  dots.forEach(d => d.addEventListener('click', () => selectTape(Number(d.dataset.dot))));
+  $('replayBtn').addEventListener('click', () => {
+    if (mode !== 'player') return;
+    video.currentTime = 0;
+    clearMessage();
+    playCurrent();
+  });
+  $('fullscreenBtn').addEventListener('click', () => {
+    if (mode !== 'player') return;
+    if (typeof video.webkitEnterFullscreen === 'function') {
+      try { video.webkitEnterFullscreen(); return; } catch (_) { /* standard path */ }
+    }
+    if (video.requestFullscreen) video.requestFullscreen().catch(() => {});
+    else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+  });
+
+  let drag = null, suppressClick = false;
+  function resetDrag() {
+    drag = null;
+    start.style.transform = '';
+    $('slotFill').style.transform = 'scaleX(0)';
+    $('slotPrompt').style.opacity = '1';
+  }
+  start.addEventListener('pointerdown', event => {
+    if (mode !== 'cover' || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    drag = { id: event.pointerId, x: event.clientX, value: 0, moved: false };
+    start.setPointerCapture(event.pointerId);
+  });
+  start.addEventListener('pointermove', event => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const max = Math.max(1, slot.clientWidth - start.offsetWidth - 8);
+    drag.value = Math.max(0, Math.min(max, event.clientX - drag.x));
+    drag.moved ||= Math.abs(event.clientX - drag.x) > 7;
+    start.style.transform = `translateX(${drag.value}px)`;
+    $('slotFill').style.transform = `scaleX(${drag.value / max})`;
+    $('slotPrompt').style.opacity = String(1 - drag.value / max * .85);
+  });
+  start.addEventListener('pointerup', event => {
+    if (!drag || drag.id !== event.pointerId) return;
+    const completed = drag.value / Math.max(1, slot.clientWidth - start.offsetWidth - 8) > .8;
+    const moved = drag.moved;
+    if (start.hasPointerCapture(event.pointerId)) start.releasePointerCapture(event.pointerId);
+    resetDrag();
+    suppressClick = moved;
+    if (completed) beginIntro();
+    // The browser's synthetic click follows pointerup in the same turn.
+    setTimeout(() => { suppressClick = false; }, 0);
+  });
+  start.addEventListener('pointercancel', resetDrag);
+  start.addEventListener('click', () => {
+    if (!suppressClick) beginIntro();
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && mode === 'intro') {
+      event.preventDefault();
+      if (!musicRequested) requestMemory();
+      showReady();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      hiddenAt = performance.now();
+      SceneMotion.stop();
+      if (mode === 'intro') {
+        cancelAnimationFrame(introFrame);
+        if (!memory.paused) memory.pause();
+      } else if (mode === 'ready') {
+        if (!memory.paused) memory.pause();
+        updateMemoryUI();
+      }
+    } else {
+      if (mode === 'intro') {
+        if (hiddenAt !== null) lostTime += performance.now() - hiddenAt;
+        if (musicStarted && !silent) playMemory();
+        introFrame = requestAnimationFrame(tickIntro);
+      } else if (!reduced.matches && mode === 'ready') {
+        SceneMotion.paused = false;
+        BgScenes.start();
+      }
+      hiddenAt = null;
+    }
+  });
+  window.addEventListener('pagehide', () => {
+    memory.pause();
+    video.pause();
+  });
+  function setReducedMotion() {
+    SceneMotion.paused = reduced.matches;
+    if (reduced.matches) {
+      SceneMotion.stop();
+      BgScenes.show(BgScenes.current);
+    } else if (mode === 'cover' || mode === 'ready') {
+      SceneMotion.paused = false;
+      BgScenes.start();
+    }
+  }
+  reduced.addEventListener?.('change', setReducedMotion);
+
+  BgScenes.init();
+  setReducedMotion();
+  setTrack(-1);
+  updateMemoryUI();
 })();
