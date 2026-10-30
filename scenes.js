@@ -180,10 +180,12 @@ const SceneMotion={
     const stride=Math.sin(t*4)*12,bob=Math.abs(Math.sin(t*4))*-2.5;
     this.transform(this.el('journey-walker'),`translate(${x} ${240+bob})`);
     const legL=this.el('jw-leg-l'),legR=this.el('jw-leg-r'),armL=this.el('jw-arm-l'),armR=this.el('jw-arm-r'),head=this.el('jw-head');
-    this.attr(legL,'x2',-2+stride*.3);this.attr(legL,'y2',20+Math.abs(stride)*.15);
-    this.attr(legR,'x2',2-stride*.3);this.attr(legR,'y2',20+Math.abs(-stride)*.15);
-    this.attr(armL,'x2',-8-stride*.25);this.attr(armL,'y2',10+stride*.15);
-    this.attr(armR,'x2',8+stride*.25);this.attr(armR,'y2',10-stride*.15);
+    // The limbs were converted from lines to paths during init. Animate the
+    // path geometry (x2/y2 on a path has no effect).
+    this.attr(legL,'d',`M-2 8 L${-2+stride*.3} ${20+Math.abs(stride)*.15}`);
+    this.attr(legR,'d',`M2 8 L${2-stride*.3} ${20+Math.abs(stride)*.15}`);
+    this.attr(armL,'d',`M-3 0 L${-8-stride*.25} ${10+stride*.15}`);
+    this.attr(armR,'d',`M3 0 L${8+stride*.25} ${10-stride*.15}`);
     this.attr(head,'cy',-14+bob*.3);
     this.attr(this.el('jw-shadow'),'cy',20);this.attr(this.el('jw-shadow'),'rx',8);this.opacity(this.el('jw-shadow'),.15);
   },
