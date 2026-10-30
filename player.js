@@ -27,17 +27,17 @@
   const $ = id => document.getElementById(id);
   const archive = $('archive'), intro = $('intro'), introLine = $('introLine');
   const video = $('video'), memory = $('memoryAudio');
-  const start = $('startBtn'), slot = $('startSlot'), firefly = $('firefly');
+  const firefly = $('firefly');
   const message = $('mediaMessage'), tapes = [...document.querySelectorAll('[data-tape]')];
   const dots = [...document.querySelectorAll('[data-dot]')];
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 
-  let mode = 'cover'; // cover -> intro -> ready -> player
+  let mode = 'cover'; // automatic opening -> archive -> selected tape
   let selected = -1, playToken = 0;
   let introFrame = 0, cueIndex = -1, introClock = 0, wallStart = 0, hiddenAt = null, lostTime = 0;
   let musicRequested = false, musicStarted = false, silent = false, silentStart = 0;
   let audioContext = null, gainNode = null, memoryLevel = 0, fadeFrame = 0;
-  let transitionTimer = 0;
+  let transitionTimer = 0, musicWaitTimer = 0;
 
   const clamp = value => Math.max(0, Math.min(1, value));
   const visibleTime = () => (performance.now() - wallStart - lostTime) / 1000;
@@ -52,7 +52,8 @@
       t.setAttribute('aria-pressed', String(hasTrack && i === index));
     });
     dots.forEach((d, i) => d.setAttribute('aria-pressed', String(hasTrack && i === index)));
-    $('rackNote').textContent = hasTrack ? tracks[index].note : 'Take your time. These were always meant for you.';
+    $('rackNote').hidden = !hasTrack;
+    $('rackNote').textContent = hasTrack ? tracks[index].note : '';
     video.setAttribute('aria-label', hasTrack ? `Tape ${index + 1}: ${tracks[index].title}` : 'Video player');
     document.documentElement.style.setProperty('--scene-rgb', BgScenes.colors[hasTrack ? index : BgScenes.current]);
   }
@@ -166,27 +167,40 @@
   }
 
   async function playMemory() {
-    if (memory.error) { updateMemoryUI(); return false; }
+    if (memory.error) { continueWithoutAudio(); updateMemoryUI(); return false; }
     if (memory.ended || (Number.isFinite(memory.duration) && memory.currentTime >= memory.duration - .5)) {
       try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* wait for metadata */ }
     }
     if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(() => {});
+    if (mode === 'intro' && silent) {
+      // Sound has been enabled after the silent fallback; meet the current scene time.
+      try { memory.currentTime = MUSIC_OFFSET + Math.max(0, introClock - MUSIC_AT); } catch (_) { /* no seek until metadata */ }
+    }
     try {
       await memory.play();
       musicStarted = true;
+      silent = false;
+      clearTimeout(musicWaitTimer);
       $('resumeMusic').hidden = true;
-      $('silentContinue').hidden = true;
       fadeMemory(MAX_MEMORY_VOLUME, mode === 'intro' ? 3200 : 850);
       updateMemoryUI();
       return true;
     } catch (_) {
       if (mode === 'intro') {
+        continueWithoutAudio();
         $('resumeMusic').hidden = false;
-        $('silentContinue').hidden = false;
       }
       updateMemoryUI();
       return false;
     }
+  }
+
+  function continueWithoutAudio() {
+    // An automatic opening cannot guarantee audible autoplay on mobile browsers.
+    // Keep the scene moving if playback is blocked, and offer a sound button.
+    if (mode !== 'intro' || !musicRequested || musicStarted || silent) return;
+    silent = true;
+    silentStart = visibleTime();
   }
 
   function requestMemory() {
@@ -201,27 +215,29 @@
       playMemory();
     };
     if (memory.readyState >= HTMLMediaElement.HAVE_METADATA) launch();
-    else memory.addEventListener('loadedmetadata', launch, { once: true });
+    else {
+      memory.addEventListener('loadedmetadata', launch, { once: true });
+      musicWaitTimer = window.setTimeout(() => {
+        if (mode === 'intro' && !musicStarted) {
+          continueWithoutAudio();
+          $('resumeMusic').hidden = !!memory.error;
+        }
+      }, 1800);
+    }
   }
 
   function showReady() {
     if (mode === 'ready' || mode === 'player') return;
     mode = 'ready';
     cancelAnimationFrame(introFrame);
+    clearTimeout(musicWaitTimer);
     introLine.classList.remove('visible');
-    $('coverEyebrow').textContent = 'TAKE YOUR TIME';
-    $('coverTitle').textContent = 'They’re here when you’re ready.';
-    $('coverSubtitle').textContent = 'Pick whichever song you want to hear first.';
-    $('cover').classList.add('archive-invite');
-    $('cover').hidden = false;
-    $('startSlot').hidden = true;
     $('playingStrip').hidden = true;
     $('memoryStrip').hidden = false;
-    $('openingHint').hidden = true;
-    $('footerNote').textContent = 'Listen in any order. Nothing starts until you choose.';
+    $('footerNote').textContent = 'Four recordings. Play one whenever you like.';
     archive.classList.remove('intro-running', 'has-media', 'is-playing');
     document.body.classList.remove('intro-active');
-    // A landscape phone may have scrolled to the start handle; reveal from the top.
+    // Return to the top of the archive after the full-screen scene.
     window.scrollTo(0, 0);
     document.body.classList.add('intro-exiting');
     intro.classList.add('is-ending');
@@ -279,7 +295,6 @@
     intro.hidden = false;
     intro.classList.remove('is-ending');
     $('introProgress').style.transform = 'scaleX(0)';
-    start.disabled = true;
     wallStart = performance.now();
     lostTime = 0;
     introClock = 0;
@@ -311,11 +326,8 @@
     setTrack(index);
     archive.classList.add('has-media');
     archive.classList.remove('intro-running');
-    $('cover').hidden = true;
-    $('startSlot').hidden = true;
     $('memoryStrip').hidden = true;
     $('playingStrip').hidden = false;
-    $('openingHint').hidden = true;
     video.controls = true;
     BgScenes.stop();
     $('footerNote').textContent = 'You can return to the other songs whenever you like.';
@@ -350,12 +362,6 @@
     prepareSound();
     playMemory();
   });
-  $('silentContinue').addEventListener('click', () => {
-    silent = true;
-    silentStart = visibleTime();
-    $('resumeMusic').hidden = true;
-    $('silentContinue').hidden = true;
-  });
   $('skipIntro').addEventListener('click', () => {
     if (mode !== 'intro') return;
     if (!musicRequested) requestMemory();
@@ -375,7 +381,7 @@
   memory.addEventListener('error', () => {
     if (mode === 'intro') {
       $('resumeMusic').hidden = true;
-      $('silentContinue').hidden = false;
+      continueWithoutAudio();
     }
     updateMemoryUI();
   });
@@ -419,43 +425,6 @@
     else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
   });
 
-  let drag = null, suppressClick = false;
-  function resetDrag() {
-    drag = null;
-    start.style.transform = '';
-    $('slotFill').style.transform = 'scaleX(0)';
-    $('slotPrompt').style.opacity = '1';
-  }
-  start.addEventListener('pointerdown', event => {
-    if (mode !== 'cover' || (event.pointerType === 'mouse' && event.button !== 0)) return;
-    drag = { id: event.pointerId, x: event.clientX, value: 0, moved: false };
-    start.setPointerCapture(event.pointerId);
-  });
-  start.addEventListener('pointermove', event => {
-    if (!drag || drag.id !== event.pointerId) return;
-    const max = Math.max(1, slot.clientWidth - start.offsetWidth - 8);
-    drag.value = Math.max(0, Math.min(max, event.clientX - drag.x));
-    drag.moved ||= Math.abs(event.clientX - drag.x) > 7;
-    start.style.transform = `translateX(${drag.value}px)`;
-    $('slotFill').style.transform = `scaleX(${drag.value / max})`;
-    $('slotPrompt').style.opacity = String(1 - drag.value / max * .85);
-  });
-  start.addEventListener('pointerup', event => {
-    if (!drag || drag.id !== event.pointerId) return;
-    const completed = drag.value / Math.max(1, slot.clientWidth - start.offsetWidth - 8) > .8;
-    const moved = drag.moved;
-    if (start.hasPointerCapture(event.pointerId)) start.releasePointerCapture(event.pointerId);
-    resetDrag();
-    suppressClick = moved;
-    if (completed) beginIntro();
-    // The browser's synthetic click follows pointerup in the same turn.
-    setTimeout(() => { suppressClick = false; }, 0);
-  });
-  start.addEventListener('pointercancel', resetDrag);
-  start.addEventListener('click', () => {
-    if (!suppressClick) beginIntro();
-  });
-
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && mode === 'intro') {
       event.preventDefault();
@@ -495,7 +464,7 @@
     if (reduced.matches) {
       SceneMotion.stop();
       BgScenes.show(BgScenes.current);
-    } else if (mode === 'cover' || mode === 'ready') {
+    } else if (mode === 'ready') {
       SceneMotion.paused = false;
       BgScenes.start();
     }
@@ -506,4 +475,5 @@
   setReducedMotion();
   setTrack(-1);
   updateMemoryUI();
+  beginIntro(); // Loading the page starts the fullscreen scene. No slider, cover, or tap gate.
 })();
