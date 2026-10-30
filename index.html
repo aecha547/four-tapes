@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#06080b"><meta name="description" content="Four songs made for Nini. A little night archive, kept just for you."><meta name="robots" content="noindex,nofollow,noarchive"><title>Four Tapes for Nini</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306080b'/%3E%3Ccircle cx='16' cy='18' r='5' fill='%23e9c77d'/%3E%3Cpath d='M16 14Q3 3 6 14M16 14Q29 3 26 14' stroke='%23e9c77d' fill='none'/%3E%3C/svg%3E"><link rel="stylesheet" href="style.css"><script src="scenes.js" defer></script><script src="player.js" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#06080b"><meta name="description" content="Four little recordings. A quiet place, just for you."><meta name="robots" content="noindex,nofollow,noarchive"><title>Four Tapes, Just for You</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2306080b'/%3E%3Ccircle cx='16' cy='18' r='5' fill='%23e9c77d'/%3E%3Cpath d='M16 14Q3 3 6 14M16 14Q29 3 26 14' stroke='%23e9c77d' fill='none'/%3E%3C/svg%3E"><link rel="stylesheet" href="style.css"><script src="scenes.js" defer></script><script src="player.js" defer></script></head>
 <body>
 <div class="grain" aria-hidden="true"></div>
 <main class="archive" id="archive">
- <header class="page-heading"><div><p class="eyebrow">KEPT JUST FOR YOU</p><h1>Four tapes for Nini.</h1></div><p class="dedication">Some things sound softer<br>when they become a song.</p></header>
- <section class="archive-shell" aria-label="Nini’s tape archive">
+ <header class="page-heading"><div><p class="eyebrow">KEPT JUST FOR YOU</p><h1>Four tapes, just for you.</h1></div><p class="dedication">Some things sound softer<br>when they become a song.</p></header>
+ <section class="archive-shell" aria-label="Your tape archive">
   <div class="archive-screen">
-   <div class="scene-console"><span id="scene-label">01 / STARS</span><div class="scene-switches" aria-label="Choose a tape"><button data-dot="0" aria-label="Play tape 1: Stars" aria-pressed="true"></button><button data-dot="1" aria-label="Play tape 2: Dive" aria-pressed="false"></button><button data-dot="2" aria-label="Play tape 3: Whereforth" aria-pressed="false"></button><button data-dot="3" aria-label="Play tape 4: Je musique" aria-pressed="false"></button></div><span class="scene-time"><i id="scene-progress"></i></span></div>
+   <div class="scene-console"><span id="scene-label">YOUR FOUR TAPES</span><div class="scene-switches" aria-label="Choose a tape"><button data-dot="0" aria-label="Play tape 1: Stars" aria-pressed="false"></button><button data-dot="1" aria-label="Play tape 2: Dive" aria-pressed="false"></button><button data-dot="2" aria-label="Play tape 3: Whereforth" aria-pressed="false"></button><button data-dot="3" aria-label="Play tape 4: Je musique" aria-pressed="false"></button></div><span class="scene-time"><i id="scene-progress"></i></span></div>
    <div class="crt" id="crt">
     <div id="bg-scenes" aria-hidden="true"><div class="bg-scene" data-scene="0"><svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
 <defs>
@@ -297,20 +297,31 @@
 </g>
 </svg></div></div>
     <div class="screen-haze" aria-hidden="true"></div>
-    <div class="cover" id="cover"><div class="cover-copy"><p class="eyebrow">A LITTLE NIGHT ARCHIVE</p><h2>I left a little<br>of my heart here.</h2><p>Four songs I made for you.<br>For the things I never quite said out loud.</p></div></div>
-    <div class="intro" id="intro" hidden><p class="intro-line" id="introLine" aria-live="polite"></p><button class="resume-music" id="resumeMusic" hidden type="button">Tap to hear the first song</button></div>
-    <div class="ff" id="firefly" aria-hidden="true"><i class="ff-glow"></i><i class="ff-wing l"></i><i class="ff-wing r"></i><i class="ff-body"></i></div>
+    <div class="cover" id="cover"><div class="cover-copy"><p class="eyebrow" id="coverEyebrow">A LITTLE NIGHT ARCHIVE</p><h2 id="coverTitle">I left a little<br>of my heart here.</h2><p id="coverSubtitle">Four songs I made for you.<br>Some things are easier to sing than to say.</p></div></div>
     <video id="video" preload="none" playsinline webkit-playsinline controls controlslist="nodownload" aria-label="Tape video player"></video>
     <div class="media-message" id="mediaMessage" role="status" aria-live="polite" hidden></div>
    </div>
    <div class="slot-strip" id="slotStrip">
-    <div class="start-slot" id="startSlot"><div class="slot-fill" id="slotFill"></div><span class="slot-prompt" id="slotPrompt">Drag the slot to begin</span><button class="slot-handle" id="startBtn" type="button" aria-label="Begin Nini’s tapes. Tap or drag to the right." aria-describedby="openingHint">→</button></div>
+    <div class="start-slot" id="startSlot"><div class="slot-fill" id="slotFill"></div><span class="slot-prompt" id="slotPrompt">Drag the slot to begin</span><button class="slot-handle" id="startBtn" type="button" aria-label="Begin the opening scene. Tap or drag to the right." aria-describedby="openingHint">→</button></div>
     <div class="playing-strip" id="playingStrip" hidden><span class="playing-label" id="playingLabel">TAPE 01 · STARS</span><div class="player-actions"><button id="replayBtn" type="button" aria-label="Replay current tape">↺ <span>Replay</span></button><button id="fullscreenBtn" type="button" aria-label="Watch current tape fullscreen">⛶ <span>Fullscreen</span></button></div></div>
+    <div class="memory-strip" id="memoryStrip" hidden aria-live="polite">
+    <div class="memory-info"><span class="memory-light" aria-hidden="true"></span><span><strong id="memoryStatus">MEMORY IS PLAYING</strong><small>No tape is playing yet. Choose one when you're ready.</small></span></div>
+    <button id="memoryToggle" type="button" aria-label="Pause background music">Pause music</button>
+    </div>
    </div>
-   <p class="opening-hint" id="openingHint">Or tap the arrow. I’ll meet you on the other side.</p>
+   <p class="opening-hint" id="openingHint">Or tap the arrow. I'll meet you on the other side.</p>
   </div>
   <aside class="rack" aria-label="The four tapes"><div class="rack-title"><span>THE RECORDINGS</span><span>01 — 04</span></div><div class="tapes"><button class="tape" data-tape="0" aria-label="Play tape 1: Stars"><span class="win" aria-hidden="true"><i class="reel"></i><span class="tape-thread"></span><i class="reel"></i></span><span class="tape-meta"><small>TAPE 01</small><small>3:18</small></span><span class="tape-label">Stars</span></button><button class="tape" data-tape="1" aria-label="Play tape 2: Dive"><span class="win" aria-hidden="true"><i class="reel"></i><span class="tape-thread"></span><i class="reel"></i></span><span class="tape-meta"><small>TAPE 02</small><small>5:03</small></span><span class="tape-label">Dive</span></button><button class="tape" data-tape="2" aria-label="Play tape 3: Whereforth"><span class="win" aria-hidden="true"><i class="reel"></i><span class="tape-thread"></span><i class="reel"></i></span><span class="tape-meta"><small>TAPE 03</small><small>2:38</small></span><span class="tape-label">Whereforth</span></button><button class="tape" data-tape="3" aria-label="Play tape 4: Je musique"><span class="win" aria-hidden="true"><i class="reel"></i><span class="tape-thread"></span><i class="reel"></i></span><span class="tape-meta"><small>TAPE 04</small><small>2:36</small></span><span class="tape-label">Je musique</span></button></div><p class="rack-note" id="rackNote">Take your time.<br>These were always meant for you.</p></aside>
  </section>
  <footer class="page-footer"><span>MADE FOR YOU, BY ME.</span><span id="footerNote">A little light. Four things left unsaid.</span></footer>
-</main><noscript><p class="no-js">Four tapes for Nini. Open a recording: <a href="media/tape-1.mp4">Stars</a> · <a href="media/tape-2.mp4">Dive</a> · <a href="media/tape-3.mp4">Whereforth</a> · <a href="media/tape-4.mp4">Je musique</a>.</p></noscript>
+</main>
+<section class="intro" id="intro" role="dialog" aria-modal="true" aria-label="An opening scene" hidden>
+ <div class="intro-night" aria-hidden="true"><div class="intro-stars intro-stars-near"></div><div class="intro-stars intro-stars-far"></div><div class="intro-halo"></div><div class="intro-horizon"></div></div>
+ <p class="intro-kicker">A LITTLE SOMETHING FOR YOU</p>
+ <div class="ff" id="firefly" aria-hidden="true"><i class="ff-glow"></i><i class="ff-wing l"></i><i class="ff-wing r"></i><i class="ff-body"></i></div>
+ <p class="intro-line" id="introLine" aria-live="polite"></p>
+ <div class="intro-bottom"><div class="intro-progress" aria-hidden="true"><span id="introProgress"></span></div><div class="intro-actions"><button class="resume-music" id="resumeMusic" hidden type="button">Tap to hear the music</button><button class="silent-continue" id="silentContinue" hidden type="button">Continue without music</button><button class="skip-intro" id="skipIntro" type="button">Skip opening <span aria-hidden="true">↗</span></button></div></div>
+</section>
+<audio id="memoryAudio" src="MEMORY.mp3" preload="metadata"></audio>
+<noscript><p class="no-js">Four tapes, just for you. Open a recording: <a href="media/tape-1.mp4">Stars</a> · <a href="media/tape-2.mp4">Dive</a> · <a href="media/tape-3.mp4">Whereforth</a> · <a href="media/tape-4.mp4">Je musique</a>.</p></noscript>
 </body></html>
