@@ -138,18 +138,19 @@
   }
 
   function primeMemory() {
+    // Called synchronously from the entry button's trusted click/tap event.
+    // Keep playback running silently until the scheduled cue: pausing it here
+    // would make a second, delayed play() call subject to mobile autoplay rules.
     prepareSound();
     memory.preload = 'auto';
     memory.load();
-    // The opening gesture makes subsequent playback possible on more mobile browsers.
-    // Nothing is audible and the element is paused before the scene's music cue.
     setMemoryVolume(0);
-    memory.play().then(() => {
-      if (mode === 'intro' && !musicRequested) {
-        memory.pause();
-        try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* metadata not ready yet */ }
-      }
-    }).catch(() => {});
+    // If Web Audio is unavailable, mute the element itself. iOS ignores
+    // HTMLMediaElement.volume, so volume=0 alone is not a safe silent primer.
+    memory.muted = !gainNode;
+    memory.play().catch(() => {
+      // The ordinary in-scene sound button remains as a genuine fallback.
+    });
   }
 
   memory.addEventListener('loadedmetadata', () => {
@@ -172,6 +173,8 @@
       try { memory.currentTime = MUSIC_OFFSET; } catch (_) { /* wait for metadata */ }
     }
     if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(() => {});
+    // Unmute only when the actual music cue arrives, never on the entry screen.
+    if (memory.muted) memory.muted = false;
     if (mode === 'intro' && silent) {
       // Sound has been enabled after the silent fallback; meet the current scene time.
       try { memory.currentTime = MUSIC_OFFSET + Math.max(0, introClock - MUSIC_AT); } catch (_) { /* no seek until metadata */ }
@@ -293,7 +296,8 @@
     document.body.classList.add('intro-active');
     archive.classList.add('intro-running');
     intro.hidden = false;
-    intro.classList.remove('is-ending');
+    intro.classList.remove('is-ending', 'awaiting-entry');
+    $('introEntry').hidden = true;
     $('introProgress').style.transform = 'scaleX(0)';
     wallStart = performance.now();
     lostTime = 0;
@@ -358,6 +362,7 @@
     });
   }
 
+  $('enterIntro').addEventListener('click', beginIntro);
   $('resumeMusic').addEventListener('click', () => {
     prepareSound();
     playMemory();
@@ -475,5 +480,8 @@
   setReducedMotion();
   setTrack(-1);
   updateMemoryUI();
-  beginIntro(); // Loading the page starts the fullscreen scene. No slider, cover, or tap gate.
+  // The opening does not run until an actual tap/click enables sound.
+  archive.inert = true;
+  archive.setAttribute('aria-hidden', 'true');
+  $('enterIntro').focus({ preventScroll: true });
 })();

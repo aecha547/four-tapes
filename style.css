@@ -141,3 +141,30 @@ body.intro-exiting .archive { opacity: 1; transition: opacity 1.3s ease; }
  body.intro-exiting .archive { transition: none; }
  .intro .intro-line, .intro .ff { transition: none; filter: none; }
 }
+
+/* A single deliberate gesture unlocks audio before the opening's timed music cue. */
+.intro-entry {
+ position: absolute; inset: 0; z-index: 9; display: grid; place-items: center;
+ padding: max(24px, env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+ background: radial-gradient(ellipse at 50% 56%,#03060914 0%,#03060950 100%);
+}
+.intro-entry button {
+ display: inline-flex; gap: 18px; align-items: center; justify-content: center;
+ min-height: 60px; max-width: min(100%,360px); padding: 15px 26px;
+ border: 1px solid #e9c77d72; border-radius: 100px;
+ background: #10131acc; box-shadow: 0 0 42px #d1aa5919, 0 12px 46px #0006;
+ color: #f0dfb8; font: 500 clamp(15px,3.7vw,18px)/1.4 var(--sans);
+ letter-spacing: .015em; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+ transition: background .22s ease,border-color .22s ease,transform .22s ease;
+}
+.intro-entry button:hover { background: #211d1acc; border-color: #e9c77dd6; transform: translateY(-2px); }
+.intro-entry button:active { transform: translateY(1px); }
+.intro-entry button span { color: var(--gold); }
+.intro.awaiting-entry .intro-bottom { visibility: hidden; }
+.intro.awaiting-entry .intro-line { visibility: hidden; }
+@media (orientation: landscape) and (max-height: 400px) {
+ .intro-entry button { min-height: 48px; padding: 10px 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .intro-entry button { transition: none; }
+}
